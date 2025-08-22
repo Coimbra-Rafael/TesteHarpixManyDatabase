@@ -1,0 +1,51 @@
+using Microsoft.EntityFrameworkCore;
+using TesteHarpixManyDatabase.Api.Domain.Entities;
+using TesteHarpixManyDatabase.Api.Infrastructure;
+using TesteHarpixManyDatabase.Api.Infrastructure.Persistence;
+
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+builder.Services.AddDbContext<SecurityDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("SecurityDb")));
+
+builder.Services.AddScoped<ICompanyResolver, CompanyResolver>();
+builder.Services.AddScoped(sp =>
+{
+    var http = sp.GetRequiredService<IHttpContextAccessor>().HttpContext;
+    var resolver = sp.GetRequiredService<ICompanyResolver>();
+
+    var companyIdHeader = http?.Request.Headers["X-Company-Id"].FirstOrDefault();
+    if (string.IsNullOrWhiteSpace(companyIdHeader))
+        throw new Exception("CompanyId não informado");
+
+    var connection = resolver.GetConnectionStringAsync(Convert.ToInt32(companyIdHeader)).Result;
+
+    var options = new DbContextOptionsBuilder<CompanyDbContext>()
+        .UseNpgsql(connection)
+        .Options;
+
+    return new CompanyDbContext(options);
+});
+var app = builder.Build();
+
+app.UseSwagger();
+app.UseSwaggerUI();
+app.UseHttpsRedirection();
+
+app.MapPost("/companies", async (SecurityDbContext db, ICompanyResolver resolver, CancellationToken ct) =>
+{
+    var company = new Company
+    {
+        Name = "teste "
+    };
+
+
+    await db.Companies.AddAsync(company, ct);
+    await db.SaveChangesAsync(ct);
+    await resolver.EnsureCompanyDatabaseAsync(company.Id);
+    return Results.Created($"/companies/{company.Id}", company);
+});
+
+
+await app.RunAsync();
