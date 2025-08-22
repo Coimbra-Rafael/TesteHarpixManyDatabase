@@ -5,7 +5,33 @@ using TesteHarpixManyDatabase.Api.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.AddSecurityDefinition("X-Company-Id", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    {
+        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+        Name = "X-Company-Id",
+        Type = Microsoft.OpenApi.Models.SecuritySchemeType.ApiKey,
+        Description = "Informe o ID da empresa (tenant)"
+    });
+
+    c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    {
+        {
+            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+            {
+                Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                {
+                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                    Id = "X-Company-Id"
+                }
+            },
+            new string[] {}
+        }
+    });
+});
+builder.Services.AddHttpContextAccessor();
+
 builder.Services.AddDbContext<SecurityDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("SecurityDb")));
 
@@ -46,6 +72,11 @@ app.MapPost("/companies", async (SecurityDbContext db, ICompanyResolver resolver
     await resolver.EnsureCompanyDatabaseAsync(company.Id);
     return Results.Created($"/companies/{company.Id}", company);
 });
-
+app.MapPost("/products", async (CompanyDbContext db, Product product, CancellationToken ct) =>
+{
+    await db.Products.AddAsync(product, ct);
+    await db.SaveChangesAsync(ct);
+    return Results.Created($"/products/{product.Id}", product);
+});
 
 await app.RunAsync();

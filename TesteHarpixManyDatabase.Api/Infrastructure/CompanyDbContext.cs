@@ -11,5 +11,4 @@ public class CompanyDbContext(DbContextOptions<CompanyDbContext> option) : DbCon
     {
         base.OnModelCreating(modelBuilder);
     }
-
 }
